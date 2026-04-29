@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Downtime Analytics Pro | Factory Dashboard</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #5c59e8;
+            --primary-hover: #4a47d1;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border: #f1f5f9;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', 'Sarabun', sans-serif; 
+            background: var(--bg); 
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        /* --- Auth Section --- */
+        #screen-login { 
+            display: flex; height: 100vh; align-items: center; justify-content: center; 
+            background: radial-gradient(circle at top right, #1e293b, #0f172a); 
+            position: fixed; width: 100%; z-index: 999; 
+        }
+        .login-box { 
+            background: white; padding: 2.5rem; border-radius: 24px; width: 400px; 
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); 
+        }
+
+        /* --- Layout --- */
+        #screen-app { display: none; padding: 2rem; max-width: 1600px; margin: 0 auto; }
+        
+        .header-nav { 
+            display: flex; justify-content: space-between; align-items: center; 
+            margin-bottom: 2rem; background: white; padding: 1rem 2rem; 
+            border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        .main-grid { 
+            display: grid; grid-template-columns: 480px 1fr; gap: 2rem; 
+        }
+
+        .card { 
+            background: var(--card); border: 1px solid #e2e8f0; 
+            border-radius: 24px; padding: 2rem; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.02);
+        }
+
+        /* --- Vertical Form Design --- */
+        .form-header { margin-bottom: 2rem; }
+        .form-grid { display: flex; flex-direction: column; gap: 1.5rem; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 0.6rem; }
+        
+        label { 
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.85rem; font-weight: 700; color: #64748b; 
+            text-transform: uppercase; letter-spacing: 0.5px; 
+        }
+        
+        input, select, textarea { 
+            width: 100%; padding: 1rem; border: 1.5px solid var(--border); border-radius: 14px; 
+            font-size: 0.95rem; background: #f8fafc; transition: all 0.2s;
+            color: #1e293b;
+        }
+        
+        input:focus, select:focus, textarea:focus { 
+            outline: none; border-color: var(--primary); background: white;
+            box-shadow: 0 0 0 4px rgba(92, 89, 232, 0.1);
+        }
+
+        .btn-submit { 
+            width: 100%; background: #5c59e8;
+            color: white; border: none; padding: 1.1rem; border-radius: 16px; font-weight: 700;
+            font-size: 1rem; cursor: pointer; margin-top: 2rem; transition: 0.3s;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn-submit:hover { background: var(--primary-hover); transform: translateY(-2px); }
+
+        /* --- Dashboard Stats --- */
+        .stats-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 1.5rem; }
+        .stat-box { text-align: center; padding: 1.5rem; }
+        .stat-label { font-size: 0.85rem; color: var(--text-sub); font-weight: 600; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.8rem; font-weight: 800; color: var(--text-main); }
+
+        .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+        .chart-full { grid-column: span 2; }
+        .chart-height { height: 320px; position: relative; }
+
+        /* --- Table Style --- */
+        .table-wrapper { overflow-x: auto; margin-top: 1rem; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        th { background: #f8fafc; text-align: left; padding: 1.2rem 1rem; font-size: 0.75rem; color: var(--text-sub); text-transform: uppercase; border-bottom: 2px solid #edf2f7; }
+        td { padding: 1.2rem 1rem; border-bottom: 1px solid #edf2f7; font-size: 0.9rem; }
+        
+        .badge-line { background: #eef2ff; color: #4f46e5; padding: 5px 12px; border-radius: 10px; font-weight: 700; font-size: 0.75rem; }
+        .badge-user { background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; border: 1px solid #e2e8f0; }
+
+        @media (max-width: 1200px) { .main-grid { grid-template-columns: 1fr; } .charts-row { grid-template-columns: 1fr; } .chart-full { grid-column: span 1; } }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <div id="screen-login">
+        <div class="login-box">
+            <h2 style="text-align: center; margin-bottom: 0.5rem;">Machine downtime logger</h2>
+            <p style="text-align: center; color: var(--text-sub); font-size: 0.9rem; margin-bottom: 2rem;">Log-in and access to Downtime</p>
+            <div style="margin-bottom: 1rem;">
+                <label>Email Address</label>
+                <input type="email" id="l-email" placeholder="name@company.com">
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label>Password</label>
+                <input type="password" id="l-pass" placeholder="••••••••">
+            </div>
+            <button class="btn-submit" style="margin-top:0;" onclick="handleAuth(false)">Sign In</button>
+            <button class="btn-submit" style="margin-top:10px; background: none; color: var(--text-sub); border: 1px solid var(--border);" onclick="handleAuth(true)">Register</button>
+            <p id="l-err" style="color:var(--danger); font-size:0.8rem; margin-top:1rem; text-align:center;"></p>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="screen-app">
+        <div class="header-nav">
+            <div>
+                <h1 style="font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px;">Machine downtime logger system<span style="color:var(--primary)"></span></h1>
+                <p style="font-size: 0.8rem; color: var(--text-sub);">Downtime Management Dashboard</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:20px;">
+                <div style="text-align: right;">
+                    <p id="user-display" style="font-weight: 700; font-size: 0.9rem;"></p>
+                    <span style="font-size: 11px; color: var(--success);">● System Online</span>
+                </div>
+                <button onclick="doSignOut()" style="background: #fee2e2; color: var(--danger); border: none; padding: 8px 15px; border-radius: 10px; cursor: pointer; font-weight: 700;">Logout</button>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Vertical Form -->
+            <div class="card">
+                <div class="form-header">
+                    <h3 style="margin:0; display:flex; align-items:center; gap:12px; font-size: 1.4rem;">
+                        <span style="background:var(--primary); color:white; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:10px; font-size:1.1rem;"></span>
+                        Downtime Record
+                    </h3>
+                </div>
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label>LINE PRODUCTION</label>
+                        <input type="text" id="line" placeholder="D00">
+                    </div>
+                    <div class="input-group">
+                        <label>MACHINE ID/ NAME</label>
+                        <input type="text" id="machine" placeholder="Auto loader magazine">
+                    </div>
+                    <div class="input-group">
+                        <label>DOWNTIME REASON GROUP</label>
+                        <select id="reason">
+                            <option value="" disabled selected>Reason machine</option>
+                            <option>Mechanical Failure</option>
+                            <option>Electrical Issue</option>
+                            <option>Maintenance</option>
+                            <option>Material Shortage</option>
+                            <option>Human Error</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>START TIME</label>
+                        <input type="datetime-local" id="start_time">
+                    </div>
+                    <div class="input-group">
+                        <label>RESOLVED TIME</label>
+                        <input type="datetime-local" id="end_time">
+                    </div>
+                    <div class="input-group">
+                        <label>ACTION / SOLUTION </label>
+                        <textarea id="solve" rows="3" placeholder="Describe the change detail......."></textarea>
+                    </div>
+                     <div class="input-group">
+                        <label>TECHNICIAN </label>
+                        <!-- แก้ไข id ที่ซ้ำกันจาก solve เป็น technician -->
+                        <textarea id="technician" rows="3" placeholder="Technician or Engineer to fix problem machine"></textarea>
+                    </div>
+                </div>
+                <button class="btn-submit" onclick="submitEvent()">SAVE AND UPDATE</button>
+            </div>
+
+            <!-- Dashboard Charts & Stats -->
+            <div class="dashboard">
+                <div class="stats-container">
+                    <div class="card stat-box">
+                        <div class="stat-label">Total Loss (Min)</div>
+                        <div class="stat-value" id="sum-minutes">0</div>
+                    </div>
+                    <div class="card stat-box">
+                        <div class="stat-label">Incidents</div>
+                        <div class="stat-value" id="sum-events">0</div>
+                    </div>
+                    <div class="card stat-box">
+                        <div class="stat-label">Worst Line (Max DT)</div>
+                        <div id="worst-line-display" style="font-weight: 800; color: var(--danger); font-size: 1.3rem;">-</div>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <div class="card chart-full">
+                        <h4 style="font-size: 0.9rem; margin-bottom: 1.5rem; color: var(--text-sub);">Production line Downtime by Machine (Min) </h4>
+                        <div class="chart-height"><canvas id="lineChartObj"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <h4 style="font-size: 0.9rem; margin-bottom: 1.5rem; color: var(--text-sub);">Machines</h4>
+                        <div class="chart-height"><canvas id="machineChartObj"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <h4 style="font-size: 0.9rem; margin-bottom: 1.5rem; color: var(--text-sub);">Issue ratio (Group)</h4>
+                        <div class="chart-height"><canvas id="reasonChartObj"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Table -->
+            <div class="card" style="grid-column: span 2;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 1.2rem;">Data History Logs</h3>
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="exportToExcel()" style="background: var(--success); color:white; border:none; padding:10px 20px; border-radius:12px; cursor:pointer; font-weight:700;">Excel Export</button>
+                        <button onclick="clearAllHistory()" style="background: #f8fafc; color: var(--danger); border:1px solid #edf2f7; padding:10px 20px; border-radius:12px; cursor:pointer; font-weight:700;">Clear All</button>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table id="main-table">
+                        <thead>
+                            <tr>
+                                <th>Line</th><th>Machine</th><th>Reason</th><th>Duration</th><th>Timeline</th><th>Solution</th><th>Tech / Modifier</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // Firebase Config 
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5Y953TTOoguUdUJItUgnJVb6X0zas9eM",
+            authDomain: "machine-downtime-logger-ad6b2.firebaseapp.com",
+            projectId: "machine-downtime-logger-ad6b2",
+            storageBucket: "machine-downtime-logger-ad6b2.firebasestorage.app",
+            messagingSenderId: "691077345460",
+            appId: "1:691077345460:web:1c769161acff58302da7e1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        let charts = {};
+        let currentUser = "";
+
+        // --- AUTH ---
+        window.handleAuth = async (isReg) => {
+            const e = document.getElementById('l-email').value, p = document.getElementById('l-pass').value;
+            try {
+                if(isReg) await createUserWithEmailAndPassword(auth, e, p);
+                else await signInWithEmailAndPassword(auth, e, p);
+            } catch (err) { document.getElementById('l-err').textContent = err.message; }
+        };
+
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                document.getElementById('screen-login').style.display = 'none';
+                document.getElementById('screen-app').style.display = 'block';
+                document.getElementById('user-display').textContent = user.email;
+                currentUser = user.email;
+                loadData();
+            } else {
+                document.getElementById('screen-login').style.display = 'flex';
+                document.getElementById('screen-app').style.display = 'none';
+            }
+        });
+
+        window.doSignOut = () => signOut(auth);
+
+        // --- CORE FUNCTIONS ---
+        window.submitEvent = async () => {
+            const solve = document.getElementById('solve').value.trim();
+            const technician = document.getElementById('technician').value.trim();
+            const line = document.getElementById('line').value.trim();
+            const machine = document.getElementById('machine').value.trim();
+            const start = document.getElementById('start_time').value;
+            const end = document.getElementById('end_time').value;
+            const reason = document.getElementById('reason').value;
+
+            if(!solve || !line || !machine || !start || !end || !reason) {
+                return alert("กรุณากรอกข้อมูลให้ครบทุกช่อง และระบุ Action/Solution");
+            }
+
+            await addDoc(collection(db, 'events'), {
+                line, machine, reason, start, end, solve, technician,
+                modifier: currentUser,
+                createdAt: serverTimestamp()
+            });
+
+            alert("Saved done");
+            document.getElementById('solve').value = "";
+            document.getElementById('technician').value = "";
+            document.getElementById('line').value = "";
+            document.getElementById('machine').value = "";
+        };
+
+        function loadData() {
+            onSnapshot(query(collection(db, 'events'), orderBy('createdAt', 'desc')), snap => {
+                const data = snap.docs.map(d => d.data());
+                updateUI(data);
+            });
+        }
+
+        function updateUI(data) {
+            let totalMins = 0;
+            const lineAggr = {};
+            const machineData = {};
+            const reasonData = {};
+            
+            // โครงสร้างใหม่สำหรับเก็บข้อมูล Line แยกตาม Machine
+            const lineMachineAggr = {}; 
+            const uniqueMachines = new Set();
+
+            const tbody = document.getElementById('history-body');
+            tbody.innerHTML = "";
+
+            data.forEach(d => {
+                const mins = calculateMinutes(d.start, d.end);
+                totalMins += mins;
+
+                lineAggr[d.line] = (lineAggr[d.line] || 0) + mins;
+                machineData[d.machine] = (machineData[d.machine] || 0) + mins;
+                reasonData[d.reason] = (reasonData[d.reason] || 0) + 1;
+
+                // จัดเก็บข้อมูลสำหรับการทำ Stacked Bar
+                if (!lineMachineAggr[d.line]) lineMachineAggr[d.line] = {};
+                lineMachineAggr[d.line][d.machine] = (lineMachineAggr[d.line][d.machine] || 0) + mins;
+                uniqueMachines.add(d.machine);
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td><span class="badge-line">${d.line}</span></td>
+                        <td><b>${d.machine}</b></td>
+                        <td>${d.reason}</td>
+                        <td style="font-weight:700; color:var(--primary)">${mins} m</td>
+                        <td><small>${d.start.replace('T',' ')}<br>${d.end.replace('T',' ')}</small></td>
+                        <td>${d.solve}</td>
+                        <td><span class="badge-user">${d.technician || d.modifier?.split('@')[0] || 'Admin'}</span></td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('sum-minutes').textContent = totalMins;
+            document.getElementById('sum-events').textContent = data.length;
+            
+            // --- WORST LINE CALCULATION ---
+            const sortedLines = Object.entries(lineAggr).sort((a, b) => b[1] - a[1]);
+            const worstLineDisplay = document.getElementById('worst-line-display');
+            if (sortedLines.length > 0) {
+                worstLineDisplay.textContent = `${sortedLines[0][0]} (${sortedLines[0][1]}m)`;
+            } else {
+                worstLineDisplay.textContent = "-";
+            }
+
+            updateCharts(machineData, reasonData, lineMachineAggr, Array.from(uniqueMachines));
+        }
+
+        function updateCharts(machines, reasons, lineMachineAggr, uniqueMachinesArray) {
+            const colors = ['#5c59e8', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6', '#f43f5e', '#84cc16'];
+
+            // --- 1. กราฟแบบ Stacked Bar (แยกตาม Line และมี Machine อยู่ด้านใน) ---
+            const lineLabels = Object.keys(lineMachineAggr);
+            const lineDatasets = uniqueMachinesArray.map((machineName, index) => {
+                return {
+                    label: machineName,
+                    data: lineLabels.map(line => lineMachineAggr[line][machineName] || 0),
+                    backgroundColor: colors[index % colors.length],
+                    borderRadius: 4
+                };
+            });
+
+            if(charts['lineChartObj']) charts['lineChartObj'].destroy();
+            charts['lineChartObj'] = new Chart(document.getElementById('lineChartObj'), {
+                type: 'bar',
+                data: {
+                    labels: lineLabels,
+                    datasets: lineDatasets
+                },
+                options: {
+                    indexAxis: 'y', // เปลี่ยนเป็น 'x' ได้หากต้องการให้กราฟแท่งเป็นแนวตั้ง
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            display: true, 
+                            position: 'bottom',
+                            labels: { boxWidth: 12 }
+                        },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { stacked: true, beginAtZero: true },
+                        y: { stacked: true }
+                    }
+                }
+            });
+
+            // --- 2. กราฟเดิมที่เหลือ ---
+            renderChart('machineChartObj', 'bar', Object.keys(machines), Object.values(machines), colors, false);
+            renderChart('reasonChartObj', 'doughnut', Object.keys(reasons), Object.values(reasons), colors, false);
+        }
+
+        function renderChart(id, type, labels, data, color, horizontal) {
+            if(charts[id]) charts[id].destroy();
+            charts[id] = new Chart(document.getElementById(id), {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: Array.isArray(color) ? color : color,
+                        borderRadius: 10
+                    }]
+                },
+                options: {
+                    indexAxis: horizontal ? 'y' : 'x',
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            display: type === 'doughnut',
+                            position: 'bottom'
+                        } 
+                    },
+                    scales: horizontal || type === 'doughnut' ? {} : {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function calculateMinutes(s, e) {
+            const diff = new Date(e) - new Date(s);
+            return diff > 0 ? Math.floor(diff / 60000) : 0;
+        }
+
+        window.clearAllHistory = async () => {
+            if(confirm("ลบข้อมูลทั้งหมดถาวร?")) {
+                const snap = await getDocs(collection(db, "events"));
+                snap.forEach(d => deleteDoc(doc(db, "events", d.id)));
+            }
+        };
+
+        window.exportToExcel = () => {
+            const wb = XLSX.utils.table_to_book(document.getElementById("main-table"));
+            XLSX.writeFile(wb, `Downtime_Report_${new Date().toLocaleDateString()}.xlsx`);
+        };
+    </script>
+</body>
+</html>
